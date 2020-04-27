@@ -1,0 +1,19 @@
+{application, avrogato,
+ [{description, "An OTP application that wraps the erlavro library, while "
+                "providing it with access to a schema registry. Supports "
+                "both Confluent and OCF message formats."},
+  {vsn, "0.1.0"},
+  {registered, []},
+  {mod, {avrogato_app, []}},
+  {applications,
+   [kernel,
+    stdlib,
+    erlavro,
+    jsone,
+    inets
+   ]},
+  {env,[
+    % {registry, "https://user:pass@your-registry.example.org/"}
+   ]},
+  {modules, []}
+ ]}.

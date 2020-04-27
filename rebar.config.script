@@ -1,0 +1,23 @@
+%% if a sys.config file is present with an avrogato config, load it into the shell
+%% otherwise, skip; don't want to run this as a dep of an umbrella app.
+%%
+%% This is a weird workaround for people to optionally contribute by testing against
+%% their own registry in the REPL.
+case file:consult("config/sys.config") of
+    {ok, [List]} ->
+        case proplists:lookup(avrogato, List) of
+            undefined ->
+                CONFIG;
+            _Defined ->
+                Shell = proplists:get_value(shell, CONFIG, []),
+                case proplists:get_value(config, Shell) of
+                    undefined ->
+                        [{shell, [{config, "config/sys.config"}|Shell]}
+                         | CONFIG -- [{shell, Shell}]];
+                    _ ->
+                        CONFIG
+                end
+        end;
+    _ ->
+        CONFIG
+end.

@@ -1,0 +1,12 @@
+{"1.2.0",
+[{<<"erlavro">>,
+  {git,"https://github.com/klarna/erlavro.git",
+       {ref,"177c3f2cc184acf96190d1870f392ba35869152d"}},
+  0},
+ {<<"jsone">>,{pkg,<<"jsone">>,<<"1.4.6">>},1}]}.
+[
+{pkg_hash,[
+ {<<"jsone">>, <<"644D6D57BEFB22C8E19B324DEE19D73B1C004565009861A8F64C68B7B9E64DBF">>}]},
+{pkg_hash_ext,[
+ {<<"jsone">>, <<"78EEE8BB38F0BEE2E73673D71BC75FC6FB01F56F0D23E769A26EEE3655487A38">>}]}
+].
