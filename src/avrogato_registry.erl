@@ -31,7 +31,6 @@
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2]).
 -export([dump_schemas/3, load_schemas/1]).
 
--define(HTTPC_TIMEOUT, 10000).
 -define(SCHEMA_PREFIX, <<"avrogato">>). % used for erlavro decoding shenanigans
 
 %% Base types used in creating the index
@@ -52,7 +51,9 @@
 -export_type([schema_entry/0, id_entry/0]).
 
 -record(state, {
-          url :: registry_url()
+          url :: registry_url(),
+          headers = [] :: [{string(), string()}],
+          opts = [] :: [{atom(), term()}]
         }).
 
 
@@ -201,15 +202,17 @@ sync_schema(Name) ->
 
 %% @private
 init([Registry, PreFetch]) ->
-    _ = sync_schemas(Registry, PreFetch), % best effort
-    {ok, #state{url=Registry}}.
+    {Hdrs, Opts} = avrogato_httpc:opts(Registry),
+    State = #state{url=Registry, headers=Hdrs, opts=Opts},
+    _ = sync_schemas(State, PreFetch), % best effort
+    {ok, State}.
 
 %% @private
-handle_call(sync, _From, S=#state{url=Registry}) ->
-    {reply, sync_schemas(Registry, all), S};
-handle_call({sync, {schema, Name}}, _From, S=#state{url=Registry}) ->
-    {reply, sync_schemas(Registry, [Name]), S};
-handle_call({sync, {id, Id}}, _From, S=#state{url=Registry}) ->
+handle_call(sync, _From, S=#state{}) ->
+    {reply, sync_schemas(S, all), S};
+handle_call({sync, {schema, Name}}, _From, S=#state{}) ->
+    {reply, sync_schemas(S, [Name]), S};
+handle_call({sync, {id, Id}}, _From, S=#state{}) ->
     try
         %% Check if a concurrent request has already fetched the
         %% value and if so, shortcircuit it.
@@ -219,7 +222,7 @@ handle_call({sync, {id, Id}}, _From, S=#state{url=Registry}) ->
         end,
         %% ID-based fetching cannot find the version for a schema,
         %% and so we can only populate half the index here.
-        New = get_id(Registry, Id),
+        New = get_id(S, Id),
         IdEntries = prepare_ids([New]),
         ets:insert(?ID_TAB, IdEntries),
         {reply, ok, S}
@@ -249,7 +252,7 @@ terminate(_, _) ->
 %% @private synchronize all known schemas. Just report
 %% whatever error happened since erlavro is pretty aggressive about
 %% raising exceptions.
--spec sync_schemas(registry_url(), prefetch()) -> ok.
+-spec sync_schemas(#state{}, prefetch()) -> ok.
 sync_schemas(Registry, all) ->
     try list_schemas(Registry) of
         Schemas -> sync_schemas(Registry, Schemas)
@@ -272,25 +275,25 @@ sync_schemas(Registry, Schemas) ->
     end.
 
 %% @private list all the possible schemas (subjects) in the registry
--spec list_schemas(registry_url()) -> [string()].
-list_schemas(Url) ->
+-spec list_schemas(#state{}) -> [string()].
+list_schemas(S=#state{url = Url}) ->
     URI = Url ++ "/subjects",
-    Body = request(URI),
+    Body = request(S#state{url = URI}),
     [unicode:characters_to_list(Entry) || Entry <- jsone:decode(Body)].
 
 %% @private for all schemas, fetch all versions the registry knows about
--spec list_schema_versions(registry_url(), [string()]) ->
+-spec list_schema_versions(#state{}, [string()]) ->
     [{string(), [integer(), ...]}].
 list_schema_versions(Registry, Schemas) ->
     [list_schema_versions_(Registry, Schema) || Schema <- Schemas].
 
 %% @private for a given schema (subject), find all the versions the registry
 %% knows about.
--spec list_schema_versions_(registry_url(), string()) ->
+-spec list_schema_versions_(#state{}, string()) ->
     {string(), [integer(), ...]}.
-list_schema_versions_(Url, Schema) ->
+list_schema_versions_(S=#state{url = Url}, Schema) ->
     URI = Url ++ "/subjects/" ++ unicode:characters_to_list(Schema) ++ "/versions",
-    Body = request(URI),
+    Body = request(S#state{url = URI}),
     {Schema, jsone:decode(Body)}.
 
 %% @private drop the schema versions that we already know about from the list,
@@ -307,31 +310,31 @@ prune_schema_versions(Schemas) ->
     end, [], Schemas).
 
 %% @private Fetch the schema definitions for a given {schema, version} pair.
--spec get_schemas(string(), [{Name, [Vsn, ...]}]) -> [{{Name, Vsn}, Schema}] when
+-spec get_schemas(#state{}, [{Name, [Vsn, ...]}]) -> [{{Name, Vsn}, Schema}] when
       Name :: string(),
       Vsn :: avrogato:version(),
       Schema :: {avrogato:id(), binary()}.
 get_schemas(_, []) ->
     [];
-get_schemas(Url, [{Name, Vsns}|T]) ->
-    [{{Name, Vsn}, get_schema_version(Url, Name, Vsn)} || Vsn <- Vsns]
-    ++ get_schemas(Url, T).
+get_schemas(Reg, [{Name, Vsns}|T]) ->
+    [{{Name, Vsn}, get_schema_version(Reg, Name, Vsn)} || Vsn <- Vsns]
+    ++ get_schemas(Reg, T).
 
 %% @private Fetch a schema definition at a specific version.
--spec get_schema_version(registry_url(), string(), avrogato:version()) ->
+-spec get_schema_version(#state{}, string(), avrogato:version()) ->
     {avrogato:id(), binary()}.
-get_schema_version(Url, Name, Vsn) ->
+get_schema_version(S=#state{url = Url}, Name, Vsn) ->
     URI = Url ++ "/subjects/" ++ unicode:characters_to_list(Name)
         ++ "/versions/" ++ integer_to_list(Vsn),
-    Body = request(URI),
+    Body = request(S#state{url = URI}),
     #{<<"id">> := Id, <<"schema">> := JSON} = jsone:decode(Body),
     {Id, JSON}.
 
 %% @private fetch a schema definition according to a confluent ID
--spec get_id(registry_url(), avrogato:id()) -> {avrogato:id(), binary()}.
-get_id(Url, Id) ->
+-spec get_id(#state{}, avrogato:id()) -> {avrogato:id(), binary()}.
+get_id(S=#state{url = Url}, Id) ->
     URI = Url ++ "/schemas/ids/" ++ integer_to_list(Id),
-    Body = request(URI),
+    Body = request(S#state{url = URI}),
     #{<<"schema">> := JSON} = jsone:decode(Body),
     {Id, JSON}.
 
@@ -349,7 +352,6 @@ prepare_schemas([H|T], {Schemas, Ids}) ->
         {ok, {Schema, Id}} ->
             prepare_schemas(T, {[Schema|Schemas], [Id|Ids]});
         {error, Reason} ->
-            io:format("bad schema: ~p~n", [H]),
             %% Log and skip bad results; the schema registry may
             %% contain invalid entries in older versions of a schema.
             {Name, _} = H,
@@ -430,22 +432,10 @@ prepare_id({Id, JSON}) ->
     end.
 
 %% @private Send actual HTTP requests; return the body only if the code is good.
-%% TODO: Check TLS.
--spec request(registry_url()) -> binary().
-request(URI) ->
-    Headers = get_headers(),
-    case httpc:request(get, {URI, Headers}, [{timeout, ?HTTPC_TIMEOUT}], []) of
-        {ok, {{_Vsn, Code, _}, _Hdrs, Body}} when Code >= 200, Code < 300 ->
-            unicode:characters_to_binary(Body);
-        {ok, {{_Vsn, Code, Reason}, _Hdrs, _Body}} ->
-            error({bad_http_response, {Code, Reason}});
-        Other ->
-            error({bad_http_response, Other})
-    end.
+-spec request(#state{}) -> binary().
+request(#state{url = URI, headers = Headers, opts = Opts}) ->
+    avrogato_httpc:request(URI, Headers, Opts).
 
-%% @private TODO: support HTTP basic auth
-get_headers() ->
-    [].
 
 %%%%%%%%%%%
 %%% OPS %%%
@@ -457,10 +447,14 @@ get_headers() ->
 %% The URL must be a list.
 -spec dump_schemas(registry_url(), file:filename(), prefetch()) -> ok.
 dump_schemas(Registry, Path, all) ->
-    dump_schemas(Registry, Path, list_schemas(Registry));
+    {Hdrs, Opts} = avrogato_httpc:opts(Registry),
+    State = #state{url=Registry, headers=Hdrs, opts=Opts},
+    dump_schemas(Registry, Path, list_schemas(State));
 dump_schemas(Registry, Path, Schemas) ->
-    ToFetch = list_schema_versions(Registry, Schemas),
-    Fetched = get_schemas(Registry, ToFetch),
+    {Hdrs, Opts} = avrogato_httpc:opts(Registry),
+    State = #state{url=Registry, headers=Hdrs, opts=Opts},
+    ToFetch = list_schema_versions(State, Schemas),
+    Fetched = get_schemas(State, ToFetch),
     file:write_file(Path, term_to_binary(Fetched, [compressed])).
 
 %% @doc load a set of dumped schemas back in memory
