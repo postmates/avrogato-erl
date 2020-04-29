@@ -15,6 +15,8 @@ You also can only use this if your project does not rely on `erlavro` already, o
 Using in Erlang
 -----
 
+You must use Erlang version 21.0 or newer.
+
 Add to your project as a dependency in `rebar.config`:
 
 ```erlang
@@ -172,5 +174,3 @@ TODO
 ----
 
 - potentially support maps for encoding/decoding of terms? would require erlavro upgrades, probably.
-- Support TLS validation (not everyone VPNs to the registry)
-- Support HTTP basic auth (not useful until TLS is there)

@@ -25,7 +25,6 @@ init_per_testcase(unfound_registry, Config0) ->
     {ok, Old} = application:get_env(avrogato, registry),
     application:set_env(avrogato, registry, "http://localhost:"++integer_to_list(Port)),
     {ok, Apps} = application:ensure_all_started(avrogato),
-    Port = ?config(http_port, Config),
     [{apps, Apps}, {old_registry, Old} | Config];
 init_per_testcase(load_dumped_schemas, Config) ->
     {ok, Apps} = application:ensure_all_started(avrogato),
