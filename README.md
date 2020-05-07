@@ -30,7 +30,7 @@ All the schemas are available once the application is started (`application:ensu
 
 Specify the following OTP configuration values before application start to impact its behaviour:
 
-- `{registry, "http://example.org:8080"}`: Specify the registry from which to synchronize and fetch content. Without defining this value, the application will not boot. Currently, it does not support authentication and does not validate certificates.
+- `{registry, "http://example.org:8080"}`: Specify the registry from which to synchronize and fetch content. Without defining this value, the application will not boot. Supports HTTPS and HTTP Basic Auth.
 - `{prefetch, all | [<<"namespace.schema">>, ...]}`: Specify which schemas to load on-start (blocking operation, best effort). We recommend fetching only specific sets of them rather than `all` since the full set can take minutes. The objective should be to pay a synchronization cost at boot time to ensure no blocking once the app starts accepting traffic. Defaults to `[]`
 
 Events can be encoded by specifying the schema and a list of keys and values for the record, and by specifying the schema name and version (according to the registry).
@@ -154,7 +154,7 @@ The Erlang API can then be used as-is.
 
 Specify the following OTP configuration values before application start to impact its behaviour:
 
-- `{:registry, 'http://example.org:8080'}`: Specify the registry from which to synchronize and fetch content. Without defining this value, the application will not boot. Currently, it does not support authentication and does not validate certificates.
+- `{:registry, 'http://example.org:8080'}`: Specify the registry from which to synchronize and fetch content. Without defining this value, the application will not boot. Supports HTTPS and HTTP Basic Auth.
 - `{:prefetch, :all | ["namespace.schema", ...]}`: Specify which schemas to load on-start (blocking operation, best effort). We recommend fetching only specific sets of them rather than `all` since the full set can take minutes. The objective should be to pay a synchronization cost at boot time to ensure no blocking once the app starts accepting traffic. Defaults to `[]`
 
 Schema Management
