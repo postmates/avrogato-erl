@@ -15,5 +15,8 @@
   {env,[
     % {registry, "https://user:pass@your-registry.example.org/"}
    ]},
-  {modules, []}
+  {modules, []},
+
+  {licenses, ["BSD-3-Clause"]},
+  {links, [{"Github", "https://github.com/postmates/avrogato-erl"}]}
  ]}.
