@@ -1,3 +1,8 @@
+Now Archived and Forked
+=====
+avrogato-erl will not be maintained in this repository going forward. Please use, create issues on, and make PRs to the fork of [avrogato-erl](https://github.com/ferd/avrogato-erl) located here.
+
+
 Avrogato
 =====
 
